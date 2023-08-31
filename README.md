@@ -1,2 +1,2 @@
 # OS
-This is a repository for cperating system learning.
+This is a repository for operating system learning.
