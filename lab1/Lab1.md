@@ -1,6 +1,6 @@
 # 操作系统Lab1实验报告
 
-## 文件介绍：
+## 文件说明
 kern/driver/clock.c(h): 通过OpenSBI的接口, 可以读取当前时间(rdtime),设置时钟事件(sbi_set_timer)，是时钟中断必需的硬件支持。\
 kern/driver/intr.c(h): 中断也需要 CPU 的硬件支持，这里提供了设置中断使能位的接口（其实只封装了一句 riscv 指令）。\
 kern/init/init.c: 需要调用中断机制的初始化函数。\
