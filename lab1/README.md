@@ -13,3 +13,8 @@ kern/libs/stdio.c, libs/readline.c, libs/printfmt.c: 实现了一套标准输入
 数，输入一个字符的函数。在这里，是 cons_getc() 和 cons_putc()。\
 kern/errors.h: 定义了一些内核错误类型的宏。
 
+## 其他
+tools/kernel.ld: ucore 的链接脚本 (link script), 告诉链接器如何将目标文件的 section 组合为可执行文件。\
+tools/function.mk: 定义 Makefile 中使用的一些函数。\
+Makefile: GNU make 编译脚本。
+
