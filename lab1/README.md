@@ -3,7 +3,7 @@
 kern/init/entry.S: OpenSBI 启动之后将要跳转到的一段汇编代码,即整个程序最先执行的文件。在这里进行内核栈的分配，然后转入 C 语言编写的内核初始化函数。\
 kern/init/init.c：C 语言编写的内核入口点。主要包含 kern_init() 函数，从 kern/entry.S 跳转过来完成其他初始化工作。\
 kern/driver/console.c(h): 在 QEMU 上模拟的时候，唯一的“设备”是虚拟的控制台，通过 OpenSBI接口使用。简单封装了 OpenSBI 的字符读写接口，向上提供给输入输出库。\
-kern/driver/clock.c(h): 通 过 OpenSBI 的 接 口, 可 以 读 取 当 前 时 间 (rdtime), 设置时钟事件(sbi_set_timer)，是时钟中断必需的硬件支持。\
+kern/driver/clock.c(h): 通过 OpenSBI 的 接 口, 可 以 读 取 当 前 时 间 (rdtime), 设置时钟事件(sbi_set_timer)，是时钟中断必需的硬件支持。\
 kern/driver/intr.c(h): 中断也需要 CPU 的硬件支持，这里提供了设置中断使能位的接口（其实只封装了一句 riscv 指令）。
 
 ## 库文件
