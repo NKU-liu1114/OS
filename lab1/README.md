@@ -4,7 +4,9 @@ kern/init/entry.S: OpenSBI 启动之后将要跳转到的一段汇编代码,即�
 kern/init/init.c：C 语言编写的内核入口点。主要包含 kern_init() 函数，从 kern/entry.S 跳转过来，调用中断机制。\
 kern/driver/console.c(h): 在 QEMU 上模拟的时候，唯一的“设备”是虚拟的控制台，通过 OpenSBI接口使用。简单封装了 OpenSBI 的字符读写接口，向上提供给输入输出库。\
 kern/driver/clock.c(h): 通过 OpenSBI 的 接 口, 可 以 读 取 当 前 时 间 (rdtime), 设置时钟事件(sbi_set_timer)，是时钟中断必需的硬件支持。\
-kern/driver/intr.c(h): 中断也需要 CPU 的硬件支持，这里提供了设置中断使能位的接口（其实只封装了一句 riscv 指令）。
+kern/driver/intr.c(h): 中断也需要 CPU 的硬件支持，这里提供了设置中断使能位的接口（其实只封装了一句 riscv 指令）。\
+kern/trap/trapentry.S: 我们把中断入口点设置为这段汇编代码。这段汇编代码把寄存器的数据挪来挪去，进行上下文切换。\
+kern/trap/trap.c(h): 分发不同类型的中断给不同的 handler, 完成上下文切换之后对中断的具体处理，例如外设中断要处理外设发来的信息，时钟中断要触发特定的事件。中断处理初始化的函数也在这里，主要是把中断向量表 (stvec) 设置成所有中断都要跳到 trapentry.S 进行处理。
 
 ## 库文件
 libs/riscv.h: 以宏的方式，定义了 riscv 指令集的寄存器和指令。如果在 C 语言里使用 riscv 指令，需要通过内联汇编和寄存器的编号。这个头文件把寄存器编号和内联汇编都封装成宏，使得我们可以用类似函数的方式在 C 语言里执行一句 riscv 指令。\
