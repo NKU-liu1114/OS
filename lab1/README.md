@@ -5,8 +5,7 @@ kern/init/init.c：C 语言编写的内核入口点。主要包含 kern_init() �
 kern/driver/console.c(h): 在 QEMU 上模拟的时候，唯一的“设备”是虚拟的控制台，通过 OpenSBI接口使用。简单封装了 OpenSBI 的字符读写接口，向上提供给输入输出库。
 
 ## 库文件
-libs/riscv.h: 以宏的方式，定义了 riscv 指令集的寄存器和指令。如果在 C 语言里使用 riscv 指令，需要通过内联汇编和寄存器的编号。这个头文件把寄存器编号和内联汇编都封装成宏，使得我们可以用类似函数
-的方式在 C 语言里执行一句 riscv 指令。\
+libs/riscv.h: 以宏的方式，定义了 riscv 指令集的寄存器和指令。如果在 C 语言里使用 riscv 指令，需要通过内联汇编和寄存器的编号。这个头文件把寄存器编号和内联汇编都封装成宏，使得我们可以用类似函数的方式在 C 语言里执行一句 riscv 指令。\
 libs/sbi.c(h): 封装 OpenSBI 接口为函数。如果想在 C 语言里使用 OpenSBI 提供的接口，需要使用内联汇编。这个头文件把 OpenSBI 的内联汇编调用封装为函数。\
 libs/defs.h: 定义了一些常用的类型和宏。例如 bool 类型（C 语言不自带，这里 typedef int bool)。\
 libs/string.c(h): 一些对字符数组进行操作的函数，如 memset(),memcpy() 等，类似 C 语言的string.h。\
