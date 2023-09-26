@@ -182,7 +182,7 @@ void exception_handler(struct trapframe *tf) {
             //下面是我写的代码，根据要求进行了翻译
             cprintf("Breakpoint exception written by dyx\n");
    		    cprintf("Exception program counter (epc): %p\n", tf->epc);
-    		tf->epc += 4; // 更新 epc 寄存器，跳过异常指令
+    		tf->epc += 2; // 更新 epc 寄存器，跳过异常指令
     	    //========================================
             break;
         case CAUSE_MISALIGNED_LOAD:
