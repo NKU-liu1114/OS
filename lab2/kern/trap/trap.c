@@ -8,6 +8,7 @@
 #include <riscv.h>
 #include <stdio.h>
 #include <trap.h>
+#include <sbi.h>
 
 #define TICK_NUM 100
 
@@ -18,7 +19,7 @@ static void print_ticks() {
     panic("EOT: kernel seems ok.");
 #endif
 }
-
+int n=0;
 /* idt_init - initialize IDT to each of the entry points in kern/trap/vectors.S
  */
 void idt_init(void) {
@@ -127,7 +128,11 @@ void interrupt_handler(struct trapframe *tf) {
             // clear_csr(sip, SIP_STIP);
             clock_set_next_event();
             if (++ticks % TICK_NUM == 0) {
-                print_ticks();
+                print_ticks();   // 每发生100次时钟中断输出一行100tick
+                n++;
+            }
+            if(n==10){
+                sbi_shutdown();
             }
             break;
         case IRQ_H_TIMER:
