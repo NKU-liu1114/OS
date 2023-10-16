@@ -26,10 +26,9 @@ int kern_init(void) {
     // grade_backtrace();
     idt_init();  // init interrupt descriptor table
 
-    pmm_init();  // init physical memory management
+    pmm_init();  // 负责初始化物理内存管理
 
     idt_init();  // init interrupt descriptor table
-
     clock_init();   // init clock interrupt
     intr_enable();  // enable irq interrupt
 

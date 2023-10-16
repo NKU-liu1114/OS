@@ -3,17 +3,20 @@
 
     .section .text,"ax",%progbits
     .globl kern_entry
-kern_entry:
+kern_entry:   # 设置虚拟内存管理
     # t0 := 三级页表的虚拟地址
     lui     t0, %hi(boot_page_table_sv39)
-    # t1 := 0xffffffff40000000 即虚实映射偏移量
+    # lui: 这表示“Load Upper Immediate”，用于将一个20位的立
+    # 即数值加载到32位或64位寄存器的上20位，而寄存器的低位则被
+    # 设置为零。在寄存器中可用于构造一个大的常数。
     li      t1, 0xffffffffc0000000 - 0x80000000
     # t0 减去虚实映射偏移量 0xffffffff40000000，变为三级页表的物理地址
     sub     t0, t0, t1
-    # t0 >>= 12，变为三级页表的物理页号
+    # t0 >>= 12，右移12位，变为三级页表的物理页号
     srli    t0, t0, 12
 
     # t1 := 8 << 60，设置 satp 的 MODE 字段为 Sv39
+    # 第62位被赋1，最高四位变为0100,即表示Sv39
     li      t1, 8 << 60
     # 将刚才计算出的预设三级页表物理页号附加到 satp 中
     or      t0, t0, t1
@@ -47,6 +50,7 @@ bootstacktop:
     .align PGSHIFT
     .global boot_page_table_sv39
 # 分配 4KiB 内存给预设的三级页表
+# 刚好 一页大小能放下三级页表
 boot_page_table_sv39:
     # 0xffffffff_c0000000 map to 0x80000000 (1G)
     # 前 511 个页表项均设置为 0 ，因此 V=0 ，意味着是空的(unmapped)

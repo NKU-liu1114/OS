@@ -12,6 +12,8 @@
 #include <riscv.h>
 
 // virtual address of physical page array
+// pages指针保存的是第一个Page结构体所在的位置，也可以认为是Page结构体组成的数组的开头
+// 由于C语言的特性，可以把pages作为数组名使用，pages[i]表示顺序排列的第i个结构体
 struct Page *pages;
 // amount of physical memory (in pages)
 size_t npage = 0;
@@ -20,6 +22,7 @@ uint64_t va_pa_offset;
 // memory starts at 0x80000000 in RISC-V
 // DRAM_BASE defined in riscv.h as 0x80000000
 const size_t nbase = DRAM_BASE / PGSIZE;
+//(npage - nbase)表示物理内存的页数
 
 // virtual address of boot-time page directory
 uintptr_t *satp_virtual = NULL;
@@ -81,10 +84,11 @@ size_t nr_free_pages(void) {
 }
 
 static void page_init(void) {
-    va_pa_offset = PHYSICAL_MEMORY_OFFSET;
+    va_pa_offset = PHYSICAL_MEMORY_OFFSET;      //硬编码 0xFFFFFFFF40000000
 
-    uint64_t mem_begin = KERNEL_BEGIN_PADDR;
-    uint64_t mem_size = PHYSICAL_MEMORY_END - KERNEL_BEGIN_PADDR;
+    uint64_t mem_begin = KERNEL_BEGIN_PADDR;    //硬编码 0x80200000
+    uint64_t mem_size = PHYSICAL_MEMORY_END - KERNEL_BEGIN_PADDR; 
+    // mem_size一部分用来放内核代码和数据，一部分用来存其他的东西
     uint64_t mem_end = PHYSICAL_MEMORY_END; //硬编码取代 sbi_query_memory()接口
 
     cprintf("physcial memory map:\n");
@@ -92,26 +96,34 @@ static void page_init(void) {
             mem_end - 1);
 
     uint64_t maxpa = mem_end;
-
+    // KERNTOP:0x88000000对应的虚拟地址,即最大物理地址对应的虚拟地址
     if (maxpa > KERNTOP) {
         maxpa = KERNTOP;
     }
-
+    // end为内核代码和数据结束的虚拟地址
     extern char end[];
 
     npage = maxpa / PGSIZE;
-    //kernel在end[]结束, pages是剩下的页的开始
+    // 对剩下的内存进行分页
+    // kernel在end[]结束, pages是剩下的页的开始
     pages = (struct Page *)ROUNDUP((void *)end, PGSIZE);
+    // 把pages指针指向内核所占内存空间结束后的第一页
 
-    for (size_t i = 0; i < npage - nbase; i++) {
+    // 一开始把所有页面都设置为保留给内核使用的，之后再设置哪些页面可以分配给其他程序
+    for (size_t i = 0; i < npage - nbase; i++) {// npage - nbase 即是内核结束的虚拟地址到物理内存结束的虚拟地址之间分页的页数
         SetPageReserved(pages + i);
     }
+    // Page结构体在内存里排列在内核后面，这要占用一些内存。
 
+
+    // 从这个地方开始才是我们可以自由使用的物理内存
     uintptr_t freemem = PADDR((uintptr_t)pages + sizeof(struct Page) * (npage - nbase));
-
+    // pages-freemem之间的内存存储页表，freemem之后的内存可自由使用
     mem_begin = ROUNDUP(freemem, PGSIZE);
     mem_end = ROUNDDOWN(mem_end, PGSIZE);
     if (freemem < mem_end) {
+        //初始化我们可以自由使用的物理内存
+        // pa2page:抹去右边十二位，返回的是页号
         init_memmap(pa2page(mem_begin), (mem_end - mem_begin) / PGSIZE);
     }
 }

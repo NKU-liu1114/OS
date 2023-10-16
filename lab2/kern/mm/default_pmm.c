@@ -53,96 +53,26 @@
  *               (5.2) reset the fields of pages, such as p->ref, p->flags (PageProperty)
  *               (5.3) try to merge low addr or high addr blocks. Notice: should change some pages's p->property correctly.
  */
-free_area_t free_area;//和freelist相差不大
 
-#define free_list (free_area.free_list)//free_area.free_list太长了，改称free_list,空闲页块链表
-#define nr_free (free_area.nr_free)//空闲页的总数
-
-static void
-default_init(void) {
-    list_init(&free_list);//链表首位互指
-    nr_free = 0;//空闲页数=0
 }
+//  实例：init_memmap(pa2page(mem_begin), (mem_end - mem_begin) / PGSIZE);
 
-static void
-default_init_memmap(struct Page *base, size_t n) {//从base这个页开始，将后面的n页(包含base)作为一个页块，设置为free状态，加入空闲页块链表
-    assert(n > 0);//assert是一个宏，如果断言失败，终止执行.将0个以及以下的页作为一个页块显然不合理
-    struct Page *p = base;//p是一个页指针，刚开始指向base
-    for (; p != base + n; p ++) {//遍历了页面[base base+1 ... base+n-1 ] 总共有n个页面
-        assert(PageReserved(p));//中间判断页面是否是保留的，初始化工作应该是对保留的进行，如果不是保留的，退出
-        p->flags = p->property = 0;//所有页面开始的时候flags和property都是0
-        set_page_ref(p, 0);//ref也是0
-    }
-    base->property = n;//只有第一个页面property是n，表示它是页块的第一个页
-    SetPageProperty(base);//通过flags里面的property表示一个页是不是页块开头
-    nr_free += n;//从base这个页开始，将后面的n页(包含base)作为一个页块，设置为free状态，因此free list里面的空闲页增加了n页
-    if (list_empty(&free_list)) {//如果freelist是空的
-        list_add(&free_list, &(base->page_link));//将base代表的页块直接加入property
-    } else {
-        list_entry_t* le = &free_list;//le list_entry链表节点指针，指向freelist链表的第一个节点
-        while ((le = list_next(le)) != &free_list) {//当le的next没有指向结尾【由于freelist是一个循环链表，结尾是它自己】
-            struct Page* page = le2page(le, page_link);//le2page是一个宏，从freelist链表节点，映射到对应页，这里相当于在遍历页
-            if (base < page) {//如果base这个页地址小于page这个页的地址
-                list_add_before(le, &(base->page_link));//此时把base页里面的链表节点放在page对应的链表节点的前面
-                break;//结束
-            } else if (list_next(le) == &free_list) {//如果到了结尾，相当于下一个链表节点是开头
-                list_add(le, &(base->page_link));//此时把base插在最后面
-            }
-        }
-    }
-}
 
-static struct Page *
-default_alloc_pages(size_t n) {//需要n页的空闲空间，在空闲页块链表的所有页块里面，找一块至少有n页的，对它进行分配
-    assert(n > 0);//n小于等于0没有意义
-    if (n > nr_free) {//总的只nr_free页空闲页，需要n页的空闲页一定不行
-        return NULL;
-    }
-    struct Page *page = NULL;
-    list_entry_t *le = &free_list;//le指针指向链表的开头
-    while ((le = list_next(le)) != &free_list) {//当没有结束时
-        struct Page *p = le2page(le, page_link);//从链表指针变成页指针，相当于在遍历页块
-        if (p->property >= n) {//如果当前页块的空闲页数大于等于n
-            page = p;//此时确定用它。找到第一个就用，因此叫做first-fit
-            break;
-        }
-    }
-    if (page != NULL) {//如果找到了至少有n页空闲页的一个页块page
-        list_entry_t* prev = list_prev(&(page->page_link));//暂时存储前面的页块，后面有用
-        list_del(&(page->page_link));//暂时先把这个页块从空闲页块链表当中拿走
-        if (page->property > n) {//如果这个页块不是刚好够【有n页空闲页，那样就不用放回来了】，那么还需要把剩下的放回来
-            struct Page *p = page + n;//从page~page+n-1这些页都要拿走
-            p->property = page->property - n;//第page+n页重新称为页块头部，后面跟着原来页块数-n个页块
-            SetPageProperty(p);//设置这个页称为页块头部
-            list_add(prev, &(p->page_link));//将这个新的页块插入链表
-        }
-        nr_free -= n;//由于分走了n个空闲页，所以空闲页总数-n
-        ClearPageProperty(page);//page不再是页块的头部
-    }
-    return page;//返回找到的页块头部
-}
+// 分配n个页
 
-static void
-default_free_pages(struct Page *base, size_t n) {////从base这个页开始，将后面的n页(包含base)作为一个页块，设置为free状态，加入空闲页块链表，外加合并操作
-    //这一段和init绝大部分是一样的，就不分别写了，区别在于下面
-    assert(n > 0);
-    struct Page *p = base;
-    for (; p != base + n; p ++) {
-        assert(!PageReserved(p) && !PageProperty(p));//init针对的所有页面都是被保留的，但是free针对的页面必须不是保留的，并且不是空闲页块的第一块
-        p->flags = 0;//这里没有property=0操作
         set_page_ref(p, 0);
     }
-    base->property = n;
-    SetPageProperty(base);
-    nr_free += n;
+    base->property = n;                          // 该页块的空闲页数为n
+    SetPageProperty(base);                       // 表示从base开始的空闲页块
+    nr_free += n;                                // 总的空闲页数+n
 
-    if (list_empty(&free_list)) {
-        list_add(&free_list, &(base->page_link));
+    if (list_empty(&free_list)) {                // 空闲链表是空的
+        list_add(&free_list, &(base->page_link));// 在链表后附加上当前空闲页块
     } else {
         list_entry_t* le = &free_list;
-        while ((le = list_next(le)) != &free_list) {
+        while ((le = list_next(le)) != &free_list) {// 与初始化的时候类似，遍历空闲页块链表，将刚释放的空闲页块插入到链表中去
             struct Page* page = le2page(le, page_link);
-            if (base < page) {
+            if (base < page) {                      
                 list_add_before(le, &(base->page_link));
                 break;
             } else if (list_next(le) == &free_list) {
@@ -150,28 +80,7 @@ default_free_pages(struct Page *base, size_t n) {////从base这个页开始，�
             }
         }
     }
-    //==================================================================================================================
-    list_entry_t* le = list_prev(&(base->page_link));//链表前一个
-    if (le != &free_list) {//如果添加链表元素之前，链表是空的，添加之后，新元素的前一个元素就是free_list，如果前一个元素le不是free_list，说明之前链表不为空
-        p = le2page(le, page_link);//找到le对应的页p
-        if (p + p->property == base) {//如果页p开头的页块紧邻着base开头的页块，就可以合并，把base丢掉
-            p->property += base->property;//p代表的页块里面的空闲页数增加了base页块的空闲页数 那么多
-            ClearPageProperty(base);//base不再是空闲页块的开头
-            list_del(&(base->page_link));//base对应的页块被从链表中移除
-            base = p;//base暂时移动到p，因为可能还要向后合并
-        }
-    }
 
-    le = list_next(&(base->page_link));//base下一个节点
-    if (le != &free_list) {//不是哨兵节点
-        p = le2page(le, page_link);//从链表节点找页块
-        if (base + base->property == p) {//base页块恰好和这个页块相邻
-            base->property += p->property;//base对应页块的容量+=后面页块的容量
-            ClearPageProperty(p);//后面不再是页块
-            list_del(&(p->page_link));//移除后面的页块
-        }
-    }
-}
 
 static size_t
 default_nr_free_pages(void) {
