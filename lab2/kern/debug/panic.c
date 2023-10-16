@@ -27,7 +27,7 @@ __panic(const char *file, int line, const char *fmt, ...) {
 panic_dead:
     intr_disable();
     while (1) {
-        kmonitor(NULL);
+        //kmonitor(NULL);
     }
 }
 

@@ -1,0 +1,7 @@
+*.o
+*.d
+*.json
+*.asm
+*.sym
+*.img
+*.exe
