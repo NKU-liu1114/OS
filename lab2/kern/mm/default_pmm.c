@@ -53,95 +53,97 @@
  *               (5.2) reset the fields of pages, such as p->ref, p->flags (PageProperty)
  *               (5.3) try to merge low addr or high addr blocks. Notice: should change some pages's p->property correctly.
  */
+// 空闲页表:用一个节点指针和空闲页数量组成
 free_area_t free_area;
 
-#define free_list (free_area.free_list)
-#define nr_free (free_area.nr_free)
+#define free_list (free_area.free_list)     // the list header
+#define nr_free (free_area.nr_free)         // number of free pages in this free list，类似于一个全局变量
 
 static void
 default_init(void) {
     list_init(&free_list);
-    nr_free = 0;
+    nr_free = 0;                            // nr_free可以理解为在这里可以使用的一个全局变量，记录所有页块中可用的物理页数
 }
-
+//  实例：init_memmap(pa2page(mem_begin), (mem_end - mem_begin) / PGSIZE);
 static void
-default_init_memmap(struct Page *base, size_t n) {
-    assert(n > 0);
+default_init_memmap(struct Page *base, size_t n) {  // 初始化以地址base开始的n个页块
+    assert(n > 0);                                  // 断言语句，如果n<=0则停止执行
     struct Page *p = base;
-    for (; p != base + n; p ++) {
-        assert(PageReserved(p));
-        p->flags = p->property = 0;
-        set_page_ref(p, 0);
+    for (; p != base + n; p ++) {                   // 遍历n个页块，设为可自由分配
+        assert(PageReserved(p));                    // 断言是内核保留页
+        p->flags = p->property = 0;                 // 每个页块初始化              
+        set_page_ref(p, 0);                         // p->ref=0
     }
-    base->property = n;
-    SetPageProperty(base);
-    nr_free += n;
-    if (list_empty(&free_list)) {
-        list_add(&free_list, &(base->page_link));
-    } else {
+    base->property = n;                             // 有n个空闲页块
+    SetPageProperty(base);                          // 将base->flag设为1，表示是空闲页块的开头
+    nr_free += n;                                   // 总的空闲页数加n
+    if (list_empty(&free_list)) {                   // 如果空闲页块链表是空的
+        list_add(&free_list, &(base->page_link));   // 在链表后附加上当前空闲页块
+    } else {                                        // 非空
         list_entry_t* le = &free_list;
-        while ((le = list_next(le)) != &free_list) {
-            struct Page* page = le2page(le, page_link);
+        while ((le = list_next(le)) != &free_list) {    // 完成一次遍历，遍历终止条件即为回到空闲页块链表的表头（因为这是双向链表）
+            struct Page* page = le2page(le, page_link); // 拿到每次遍历页块的结构体地址
             if (base < page) {
-                list_add_before(le, &(base->page_link));
+                list_add_before(le, &(base->page_link));// 将新的页块加在之前
                 break;
-            } else if (list_next(le) == &free_list) {
+            } else if (list_next(le) == &free_list) {   // 已经完成遍历，即base地址大于最后一个空闲页块地址，此时将新的页块附加在之后
                 list_add(le, &(base->page_link));
             }
         }
     }
 }
 
+// 分配n个页
 static struct Page *
 default_alloc_pages(size_t n) {
     assert(n > 0);
-    if (n > nr_free) {
+    if (n > nr_free) {          // 需要的页大于总的空闲的页
         return NULL;
     }
     struct Page *page = NULL;
     list_entry_t *le = &free_list;
-    while ((le = list_next(le)) != &free_list) {
-        struct Page *p = le2page(le, page_link);
-        if (p->property >= n) {
-            page = p;
+    while ((le = list_next(le)) != &free_list) {  // 遍历空闲页块链表
+        struct Page *p = le2page(le, page_link);  // 拿到每次遍历页块的结构体地址
+        if (p->property >= n) {                   // first_fit算法的核心：一旦满足需要的页，即进行分配
+            page = p;                             // 将页块的首地址赋给返回的结果
             break;
         }
     }
-    if (page != NULL) {
-        list_entry_t* prev = list_prev(&(page->page_link));
-        list_del(&(page->page_link));
+    if (page != NULL) {                           // 即在上一步进行了赋值
+        list_entry_t* prev = list_prev(&(page->page_link));  
+        list_del(&(page->page_link));             // 将页块从freelist上摘下来
         if (page->property > n) {
-            struct Page *p = page + n;
-            p->property = page->property - n;
-            SetPageProperty(p);
-            list_add(prev, &(p->page_link));
+            struct Page *p = page + n;            // 消耗前n个页
+            p->property = page->property - n;     // 页块的空闲页数减少n
+            SetPageProperty(p);                   // 将p设为页块头，进行页块的切割
+            list_add(prev, &(p->page_link));      // 再将p开始的新页块重新放回空闲页块链表
         }
-        nr_free -= n;
-        ClearPageProperty(page);
+        nr_free -= n;                             // 全局的总空闲页块减少n
+        ClearPageProperty(page);                  // 将page开始的旧页块重置
     }
-    return page;
+    return page;                                  // 返回分配的n个页
 }
 
 static void
-default_free_pages(struct Page *base, size_t n) {
-    assert(n > 0);
+default_free_pages(struct Page *base, size_t n) {// 释放base开始的具有n个页的页块
+    assert(n > 0);                               // 断言n>0
     struct Page *p = base;
-    for (; p != base + n; p ++) {
-        assert(!PageReserved(p) && !PageProperty(p));
-        p->flags = 0;
+    for (; p != base + n; p ++) {                // 遍历页块数组
+        assert(!PageReserved(p) && !PageProperty(p));//不是保留页并且已被分配
+        p->flags = 0;                            // 重置
         set_page_ref(p, 0);
     }
-    base->property = n;
-    SetPageProperty(base);
-    nr_free += n;
+    base->property = n;                          // 该页块的空闲页数为n
+    SetPageProperty(base);                       // 表示从base开始的空闲页块
+    nr_free += n;                                // 总的空闲页数+n
 
-    if (list_empty(&free_list)) {
-        list_add(&free_list, &(base->page_link));
+    if (list_empty(&free_list)) {                // 空闲链表是空的
+        list_add(&free_list, &(base->page_link));// 在链表后附加上当前空闲页块
     } else {
         list_entry_t* le = &free_list;
-        while ((le = list_next(le)) != &free_list) {
+        while ((le = list_next(le)) != &free_list) {// 与初始化的时候类似，遍历空闲页块链表，将刚释放的空闲页块插入到链表中去
             struct Page* page = le2page(le, page_link);
-            if (base < page) {
+            if (base < page) {                      
                 list_add_before(le, &(base->page_link));
                 break;
             } else if (list_next(le) == &free_list) {
@@ -149,19 +151,19 @@ default_free_pages(struct Page *base, size_t n) {
             }
         }
     }
-
-    list_entry_t* le = list_prev(&(base->page_link));
-    if (le != &free_list) {
-        p = le2page(le, page_link);
-        if (p + p->property == base) {
-            p->property += base->property;
-            ClearPageProperty(base);
-            list_del(&(base->page_link));
+    // 考虑合并的问题
+    list_entry_t* le = list_prev(&(base->page_link));// 前一个页块
+    if (le != &free_list) {                          // 前一个页块不是空闲页块链表的首项
+        p = le2page(le, page_link);                  
+        if (p + p->property == base) {               // 链表上的前一个页块和base页块内存上紧邻，即链表上逻辑相邻且地址上物理相邻
+            p->property += base->property;           // 进行合并
+            ClearPageProperty(base);                 // 清除base的状态
+            list_del(&(base->page_link));            // 从链表上摘下base页块，用p页块覆盖掉base页块
             base = p;
         }
     }
 
-    le = list_next(&(base->page_link));
+    le = list_next(&(base->page_link));              // 后一个页块，与上类似 
     if (le != &free_list) {
         p = le2page(le, page_link);
         if (base + base->property == p) {

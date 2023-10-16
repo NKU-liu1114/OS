@@ -4,6 +4,8 @@
 OUTPUT_FORMAT("elf32-i386", "elf32-i386", "elf32-i386")
 OUTPUT_ARCH(i386)
 ENTRY(kern_entry)
+BASE_ADDRESS =BASE_ADDRESS = 0x80200000;
+
 
 SECTIONS {
     /* Load the kernel at this address: "." means the current address */

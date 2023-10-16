@@ -5,10 +5,16 @@
 #define KERNBASE            0xFFFFFFFFC0200000 // = 0x80200000(物理内存里内核的起始位置, KERN_BEGIN_PADDR) + 0xFFFFFFFF40000000(偏移量, PHYSICAL_MEMORY_OFFSET)
 //把原有内存映射到虚拟内存空间的最后一页
 #define KMEMSIZE            0x7E00000          // the maximum amount of physical memory
-// 0x7E00000 = 0x8000000 - 0x200000
+// 0x7E00000 = 0x88000000 - 0x80200000
 // QEMU 缺省的RAM为 0x80000000到0x88000000, 128MiB, 0x80000000到0x80200000被OpenSBI占用
 #define KERNTOP             (KERNBASE + KMEMSIZE) // 0x88000000对应的虚拟地址
 
+// 默认的 DRAM 物理内存地址范围是 [0x80000000,0x88000000)
+// 物理地址空间 [0x80000000,0x80200000) 被 OpenSBI 占用；
+// 物理地址空间 [0x80200000,KernelEnd) 被内核各代码与数据段占用；
+// 设备树扫描结果 DTB 还占用了一部分物理内存，不过由于不打算使用它，所以可以将它所占用的空间用来存别的东西。
+// 于是可以用来存别的东西的物理内存的物理地址范围是：[KernelEnd, 0x88000000) 。
+// 这里的 KernelEnd 为内核代码结尾的物理地址。在 kernel.ld 中定义的 end 符号为内核代码结尾的虚拟地址。
 #define PHYSICAL_MEMORY_END         0x88000000
 #define PHYSICAL_MEMORY_OFFSET      0xFFFFFFFF40000000
 #define KERNEL_BEGIN_PADDR          0x80200000
@@ -40,8 +46,12 @@ struct Page {
 };
 
 /* Flags describing the status of a page frame */
-#define PG_reserved                 0       // if this bit=1: the Page is reserved for kernel, cannot be used in alloc/free_pages; otherwise, this bit=0 
-#define PG_property                 1       // if this bit=1: the Page is the head page of a free memory block(contains some continuous_addrress pages), and can be used in alloc_pages; if this bit=0: if the Page is the the head page of a free memory block, then this Page and the memory block is alloced. Or this Page isn't the head page.
+#define PG_reserved                 0       
+// if this bit=1: the Page is reserved for kernel, cannot be used in alloc/free_pages; otherwise, this bit=0 
+#define PG_property                 1       
+// if this bit=1: the Page is the head page of a free memory block(contains some continuous_addrress pages), 
+// and can be used in alloc_pages; if this bit=0: if the Page is the the head page of a free memory block, 
+// then this Page and the memory block is alloced. Or this Page isn't the head page.
 
 #define SetPageReserved(page)       set_bit(PG_reserved, &((page)->flags))
 #define ClearPageReserved(page)     clear_bit(PG_reserved, &((page)->flags))

@@ -5,7 +5,7 @@ OUTPUT_ARCH(riscv)
 ENTRY(kern_entry)
 
 BASE_ADDRESS = 0xFFFFFFFFC0200000;
-
+/* 之前这里是 0x80200000 */
 SECTIONS
 {
     /* Load the kernel at this address: "." means the current address */

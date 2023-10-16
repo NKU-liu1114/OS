@@ -19,6 +19,7 @@ static inline void __intr_restore(bool flag) {
     }
 }
 
+// do {}while(0)作用：消除预处理时两个分号带来的问题
 #define local_intr_save(x) \
     do {                   \
         x = __intr_save(); \
