@@ -174,14 +174,14 @@ qemu: $(UCOREIMG) $(SWAPIMG) $(SFSIMG)
 	$(V)$(QEMU) \
 		-machine virt \
 		-nographic \
-		-bios default \
+		-bios /mnt/hgfs/shared_file/OperatingSystem/openSBI/fw_jump.bin \
 		-device loader,file=$(UCOREIMG),addr=0x80200000
 
 debug: $(UCOREIMG) $(SWAPIMG) $(SFSIMG)
 	$(V)$(QEMU) \
 		-machine virt \
 		-nographic \
-		-bios default \
+		-bios /mnt/hgfs/shared_file/OperatingSystem/openSBI/fw_jump.bin \
 		-device loader,file=$(UCOREIMG),addr=0x80200000\
 		-s -S
 

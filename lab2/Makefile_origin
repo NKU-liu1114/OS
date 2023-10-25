@@ -166,14 +166,14 @@ qemu: $(UCOREIMG) $(SWAPIMG) $(SFSIMG)
 	$(V)$(QEMU) \
 		-machine virt \
 		-nographic \
-		-bios /mnt/hgfs/shared_file/OperatingSystem/openSBI/fw_jump.bin \
+		-bios default \
 		-device loader,file=$(UCOREIMG),addr=0x80200000
 
 debug: $(UCOREIMG) $(SWAPIMG) $(SFSIMG)
 	$(V)$(QEMU) \
 		-machine virt \
 		-nographic \
-		-bios /mnt/hgfs/shared_file/OperatingSystem/openSBI/fw_jump.bin \
+		-bios default \
 		-device loader,file=$(UCOREIMG),addr=0x80200000\
 		-s -S
 
@@ -187,7 +187,7 @@ test: $(UCOREIMG) $(SWAPIMG) $(SFSIMG)
 	$(V)$(QEMU) \
 		-machine virt \
 		-nographic \
-		-bios /mnt/hgfs/shared_file/OperatingSystem/openSBI/fw_jump.bin \
+		-bios default \
 		-device loader,file=$(UCOREIMG),addr=0x80200000
 spike: $(UCOREIMG) $(SWAPIMG) $(SFSIMG)
 	$(V)$(SPIKE) $(UCOREIMG)
