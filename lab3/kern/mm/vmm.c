@@ -400,12 +400,16 @@ do_pgfault(struct mm_struct *mm, uint_t error_code, uintptr_t addr) {
             // 你要编写的内容在这里，请基于上文说明以及下文的英文注释完成代码编写
             //(1）According to the mm AND addr, try
             //to load the content of right disk page
+            swap_in(mm, addr, &page);
             //into the memory which page managed.
             //(2) According to the mm,
             //addr AND page, setup the
             //map of phy addr <--->
+            page_insert(mm->pgdir, page, addr, perm);
             //logical addr
             //(3) make the page swappable.
+            swap_map_swappable(mm,addr,page,swap_in);
+            
             page->pra_vaddr = addr;
         } else {
             cprintf("no swap_init_ok but ptep is %x, failed\n", *ptep);
