@@ -114,8 +114,14 @@ static inline void print_pgfault(struct trapframe *tf) {
 static int pgfault_handler(struct trapframe *tf) {
     extern struct mm_struct *check_mm_struct;
     print_pgfault(tf);
-    if (check_mm_struct != NULL) {
-        return do_pgfault(check_mm_struct, tf->cause, tf->badvaddr);
+    if (check_mm_struct != NULL) 
+    /* check_pgfault逻辑：
+    初始化check_mm_struct，动态分配其内存
+    对内存进行一系列验证测试，如果没问题则将che_mm_struct
+    赋为0，如果有问题则非0 */ 
+    
+    {// 发生错误时
+        return do_pgfault(check_mm_struct, tf->cause, tf->badvaddr);// do_pgfault()页面置换成功时返回0
     }
     panic("unhandled page fault.\n");
 }
@@ -224,7 +230,7 @@ void exception_handler(struct trapframe *tf) {
         case CAUSE_MACHINE_ECALL:
             cprintf("Environment call from M-mode\n");
             break;
-        case CAUSE_FETCH_PAGE_FAULT:
+        case CAUSE_FETCH_PAGE_FAULT:// 取指令时发生的Page Fault先不处理
             cprintf("Instruction page fault\n");
             break;
         case CAUSE_LOAD_PAGE_FAULT:

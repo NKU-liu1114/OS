@@ -34,17 +34,24 @@ struct swap_manager
 {
      const char *name;
      /* Global initialization for the swap manager */
+     // 初始化全局虚拟内存交换管理器
      int (*init)            (void);
      /* Initialize the priv data inside mm_struct */
+     // 初始化设置所关联的全局内存管理器
      int (*init_mm)         (struct mm_struct *mm);
-     /* Called when tick interrupt occured */
+     /* Called when tick interrupt occured  */
+     // 当时钟中断时被调用，可用于主动的swap交换策略
      int (*tick_event)      (struct mm_struct *mm);
      /* Called when map a swappable page into the mm_struct */
+     // 当映射一个可交换Page物理页加入mm_struct时被调用
      int (*map_swappable)   (struct mm_struct *mm, uintptr_t addr, struct Page *page, int swap_in);
      /* When a page is marked as shared, this routine is called to
       * delete the addr entry from the swap manager */
+     // 当一个页面被标记为共享页面，该函数例程会被调用。
+     // 用于将addr对应的虚拟页，从swap_manager中移除，阻止其被调度置换到磁盘中
      int (*set_unswappable) (struct mm_struct *mm, uintptr_t addr);
      /* Try to swap out a page, return then victim */
+     // 当试图换出一个物理页时，返回被选中的页面(被牺牲的页面)
      int (*swap_out_victim) (struct mm_struct *mm, struct Page **ptr_page, int in_tick);
      /* check the page relpacement algorithm */
      int (*check_swap)(void);     

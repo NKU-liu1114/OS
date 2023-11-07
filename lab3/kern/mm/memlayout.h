@@ -31,6 +31,7 @@
  * */
 
 /* All physical memory mapped at this address */
+// 内核起始虚拟地址
 #define KERNBASE            0xFFFFFFFFC0200000 // = 0x80200000(物理内存里内核的起始位置, KERN_BEGIN_PADDR) + 0xFFFFFFFF40000000(偏移量, PHYSICAL_MEMORY_OFFSET)
 //把原有内存映射到虚拟内存空间的最后一页
 #define KMEMSIZE            0x7E00000          // the maximum amount of physical memory

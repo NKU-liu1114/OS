@@ -5,6 +5,10 @@
 #include <defs.h>
 #endif /* !__ASSEMBLER__ */
 
+// 把页表项里从高到低三级页表的页码分别称作PDX1, PDX0和PTX(Page Table Index)。
+
+
+
 // A linear address 'la' has a four-part structure as follows:
 //
 // +--------9-------+-------9--------+-------9--------+---------12----------+
@@ -34,17 +38,20 @@
 // |  PPN[2] | PPN[1] | PPN[0] |Reserved|D|A|G|U|X|W|R|V|
 // +---------+----+---+--------+--------+---------------+
 
-// page directory index
+
+// PDX1SHIFT=30,右移30位得到PDX1的页表索引
 #define PDX1(la) ((((uintptr_t)(la)) >> PDX1SHIFT) & 0x1FF)
+
+// PDX0SHIFT=21,右移21位得到PDX0的页表索引，再抹去高位
 #define PDX0(la) ((((uintptr_t)(la)) >> PDX0SHIFT) & 0x1FF)
 
-// page table index
+// PDXSHIFT=12,右移12位得到PTX的页表索引，再抹去高位
 #define PTX(la) ((((uintptr_t)(la)) >> PTXSHIFT) & 0x1FF)
 
-// page number field of address
+// PTX页表索引
 #define PPN(la) (((uintptr_t)(la)) >> PTXSHIFT)
 
-// offset in page
+// 页内偏移
 #define PGOFF(la) (((uintptr_t)(la)) & 0xFFF)
 
 // construct linear address from indexes and offset
@@ -55,13 +62,18 @@
 #define PDE_ADDR(pde)   PTE_ADDR(pde)
 
 /* page directory and page table constants */
-#define NPDEENTRY       512                    // page directory entries per page directory
-#define NPTEENTRY       512                    // page table entries per page table
+#define NPDEENTRY       512                     // page directory entries per page directory
+                                                // 一页4096个字节，一个地址八字节，一页可以放4096/8=512个地址
+
+#define NPTEENTRY       512                     // page table entries per page table
+                                                // 同上
 
 #define PGSIZE          4096                    // bytes mapped by a page
 #define PGSHIFT         12                      // log2(PGSIZE)
 #define PTSIZE          (PGSIZE * NPTEENTRY)    // bytes mapped by a page directory entry
+                                                // 一个Page Directory映射的内存空间
 #define PTSHIFT         21                      // log2(PTSIZE)
+
 
 #define PTXSHIFT        12                      // offset of PTX in a linear address
 #define PDX0SHIFT       21                      // offset of PDX0 in a linear address

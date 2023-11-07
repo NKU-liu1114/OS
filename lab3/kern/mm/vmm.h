@@ -19,6 +19,7 @@ struct vma_struct {
     list_entry_t list_link;  // linear list link which sorted by start addr of vma
 };
 
+// 还是根据结构体的偏移，从link拿到vma的地址
 #define le2vma(le, member)                  \
     to_struct((le), struct vma_struct, member)
 
@@ -32,7 +33,7 @@ struct mm_struct {
     struct vma_struct *mmap_cache; // current accessed vma, used for speed purpose
     pde_t *pgdir;                  // the PDT of these vma
     int map_count;                 // the count of these vma
-    void *sm_priv;                   // the private data for swap manager
+    void *sm_priv;                 // the private data for swap manager
 };
 
 struct vma_struct *find_vma(struct mm_struct *mm, uintptr_t addr);

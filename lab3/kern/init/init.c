@@ -29,16 +29,18 @@ kern_init(void) {
     // grade_backtrace();
 
     pmm_init();                 // init physical memory management
+                                // 我们加入了多级页表的接口和测试
 
     idt_init();                 // init interrupt descriptor table
 
-    vmm_init();                 // init virtual memory management
+    vmm_init();                 // 进行虚拟内存管理机制的初始化。在此阶段，主要是建立虚拟地址到物理地址的映射关系，为虚拟内存提供管理支持
 
-    ide_init();                 // init ide devices
-    swap_init();                // init swap
+    ide_init();                 // 完成对用于页面换入和换出的硬盘（通常称为swap硬盘）的初始化工作
+                                // 其实这个函数啥也没做, 属于"历史遗留"
+    swap_init();                // 用于初始化页面置换算法，这其中包括Clock页替换算法的相关数据结构和初始化步骤
 
     clock_init();               // init clock interrupt
-    // intr_enable();              // enable irq interrupt
+   // intr_enable();              // enable irq interrupt
 
 
 

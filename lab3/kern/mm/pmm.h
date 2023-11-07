@@ -53,7 +53,7 @@ int page_insert(pde_t *pgdir, struct Page *page, uintptr_t la, uint32_t perm);
 void tlb_invalidate(pde_t *pgdir, uintptr_t la);
 struct Page *pgdir_alloc_page(pde_t *pgdir, uintptr_t la, uint32_t perm);
 
-
+// VA->PA
 /* *
  * PADDR - takes a kernel virtual address (an address that points above
  * KERNBASE),
@@ -71,6 +71,7 @@ struct Page *pgdir_alloc_page(pde_t *pgdir, uintptr_t la, uint32_t perm);
         __m_kva - va_pa_offset;                                    \
     })
 
+// PA->VA
 /* *
  * KADDR - takes a physical address and returns the corresponding kernel virtual
  * address. It panics if you pass an invalid physical address.
@@ -90,24 +91,28 @@ extern size_t npage;
 extern const size_t nbase;
 extern uint_t va_pa_offset;
 
-static inline ppn_t page2ppn(struct Page *page) { return page - pages + nbase; }
+static inline ppn_t page2ppn(struct Page *page) { return page - pages + nbase; } 
+// 页块数组中，页块的指针-页块数组的起始地址为页块编号，再把编号加上基准页数即为整个物理内存分页后的页编号
+// 物理页码（PPN）只是一个数字，它表示页在物理内存中的索引或顺序位置。
 
 static inline uintptr_t page2pa(struct Page *page) {
     return page2ppn(page) << PGSHIFT;
+    // 物理页码左移12位后，就得到了以改页码
 }
 
 static inline struct Page *pa2page(uintptr_t pa) {
-    if (PPN(pa) >= npage) {
+    // 物理地址转到页面
+    if (PPN(pa) >= npage) {// npage:物理页码的最大编号（即0x88000000/4096的结果）
         panic("pa2page called with invalid pa");
     }
-    return &pages[PPN(pa) - nbase];
+    return &pages[PPN(pa) - nbase];// return pages(页块数组的基地址)+相对0x800000000页码的偏移*sizeof(Page)
 }
 
-static inline void *page2kva(struct Page *page) { return KADDR(page2pa(page)); }
+static inline void *page2kva(struct Page *page) { return KADDR(page2pa(page)); } // page->pa->va
 
-static inline struct Page *kva2page(void *kva) { return pa2page(PADDR(kva)); }
+static inline struct Page *kva2page(void *kva) { return pa2page(PADDR(kva)); } // va->pa->page
 
-static inline struct Page *pte2page(pte_t pte) {
+static inline struct Page *pte2page(pte_t pte) {// PTE 是下一级页表的物理地址和一些标志位
     if (!(pte & PTE_V)) {
         panic("pte2page called with invalid pte");
     }

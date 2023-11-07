@@ -41,6 +41,7 @@ _fifo_init_mm(struct mm_struct *mm)
 /*
  * (3)_fifo_map_swappable: According FIFO PRA, we should link the most recent arrival page at the back of pra_list_head qeueue
  */
+// 每次换出头部的页
 static int
 _fifo_map_swappable(struct mm_struct *mm, uintptr_t addr, struct Page *page, int swap_in)
 {
@@ -51,7 +52,9 @@ _fifo_map_swappable(struct mm_struct *mm, uintptr_t addr, struct Page *page, int
     //record the page access situlation
 
     //(1)link the most recent arrival page at the back of the pra_list_head qeueue.
+    // 核心：最新加入的放到队尾
     list_add(head, entry);
+    
     return 0;
 }
 /*
@@ -62,17 +65,17 @@ static int
 _fifo_swap_out_victim(struct mm_struct *mm, struct Page ** ptr_page, int in_tick)
 {
      list_entry_t *head=(list_entry_t*) mm->sm_priv;
-         assert(head != NULL);
+     assert(head != NULL);
      assert(in_tick==0);
      /* Select the victim */
      //(1)  unlink the  earliest arrival page in front of pra_list_head qeueue
      //(2)  set the addr of addr of this page to ptr_page
     list_entry_t* entry = list_prev(head);
     if (entry != head) {
-        list_del(entry);
-        *ptr_page = le2page(entry, pra_page_link);
+        list_del(entry);// 把头部的拿走
+        *ptr_page = le2page(entry, pra_page_link);// 返回其对应的页面
     } else {
-        *ptr_page = NULL;
+        *ptr_page = NULL;// 空链表了
     }
     return 0;
 }
