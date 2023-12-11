@@ -51,6 +51,8 @@ int mm_map(struct mm_struct *mm, uintptr_t addr, size_t len, uint32_t vm_flags,
 int do_pgfault(struct mm_struct *mm, uint_t error_code, uintptr_t addr);
 
 int mm_unmap(struct mm_struct *mm, uintptr_t addr, size_t len);
+
+// 复制/删除用户进程的合法内存空间
 int dup_mmap(struct mm_struct *to, struct mm_struct *from);
 void exit_mmap(struct mm_struct *mm);
 uintptr_t get_unmapped_area(struct mm_struct *mm, size_t len);

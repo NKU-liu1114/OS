@@ -21,8 +21,8 @@
  *                            |                                 |
  *     KERNBASE ------------> +---------------------------------+ 0xC0000000
  *                            |        Invalid Memory (*)       | --/--
- *     USERTOP -------------> +---------------------------------+ 0xB0000000
- *                            |           User stack            |
+ *     USERTOP 用户程序 -----> +---------------------------------+ 0xB0000000
+ *                            |       User stack用户程序栈区     |
  *                            +---------------------------------+
  *                            |                                 |
  *                            :                                 :
@@ -30,7 +30,7 @@
  *                            :                                 :
  *                            |                                 |
  *                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- *                            |       User Program & Heap       |
+ *                            |     User Program & Heap堆区     |
  *     UTEXT ---------------> +---------------------------------+ 0x00800000
  *                            |        Invalid Memory (*)       | --/--
  *                            |  - - - - - - - - - - - - - - -  |
@@ -67,13 +67,16 @@
 #define USTACKPAGE          256                         // # of pages in user stack
 #define USTACKSIZE          (USTACKPAGE * PGSIZE)       // sizeof user stack
 
+// stab是一种调试信息格式，用于在编译的程序代码中嵌入关于源代码的信息。这些信息使调试器能够理解编译后的代码与原始源代码之间的关系。
 #define USERBASE            0x00200000
 #define UTEXT               0x00800000                  // where user programs generally begin
 #define USTAB               USERBASE                    // the location of the user STABS data structure
 
+// 判断是否是在用户空间
 #define USER_ACCESS(start, end)                     \
 (USERBASE <= (start) && (start) < (end) && (end) <= USERTOP)
 
+// 判断是否是在内核空间
 #define KERN_ACCESS(start, end)                     \
 (KERNBASE <= (start) && (start) < (end) && (end) <= KERNTOP)
 

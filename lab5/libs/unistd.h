@@ -3,6 +3,7 @@
 
 #define T_SYSCALL           0x80
 
+// 一系列系统调用的宏定义
 /* syscall number */
 #define SYS_exit            1
 #define SYS_fork            2

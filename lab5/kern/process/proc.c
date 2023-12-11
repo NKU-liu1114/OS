@@ -16,7 +16,7 @@
 /* ------------- process/thread mechanism design&implementation -------------
 (an simplified Linux process/thread mechanism )
 introduction:
-  ucore implements a simple process/thread mechanism. process contains the independent memory sapce, at least one threads
+  ucore implements a simple process/thread mechanism. process contains the independent memory space, at least one threads
 for execution, the kernel data(for management), processor state (for context switch), files(in lab6), etc. ucore needs to
 manage all these details efficiently. In ucore, a thread is just a special kind of process(share process's memory).
 ------------------------------
@@ -110,6 +110,22 @@ alloc_proc(void) {
      *       uint32_t wait_state;                        // waiting state
      *       struct proc_struct *cptr, *yptr, *optr;     // relations between processes
      */
+    
+        proc->state = PROC_UNINIT;
+        proc->pid = -1;
+        proc->runs = 0;
+        proc->kstack = 0;
+        proc->need_resched = 0;
+        proc->parent = NULL;
+        proc->mm = NULL;
+        proc->mm = NULL; // 进程所用的虚拟内存
+        memset(&(proc->context), 0, sizeof(struct context)); // 进程的上下文
+        proc->tf = NULL; // 中断帧指针
+        proc->cr3 = boot_cr3; // 页目录表地址 设为 内核页目录表基址
+        proc->flags = 0; // 标志位
+        memset(&(proc->name), 0, PROC_NAME_LEN); // 进程名
+        proc->wait_state = 0;  
+        proc->cptr = proc->optr = proc->yptr = NULL;
     }
     return proc;
 }
@@ -206,7 +222,17 @@ proc_run(struct proc_struct *proc) {
         *   lcr3():                   Modify the value of CR3 register
         *   switch_to():              Context switching between two processes
         */
-
+        bool intr_flag;
+        struct proc_struct *prev = current, *next = proc;
+        local_intr_save(intr_flag); // 关闭中断
+        {
+            current = proc; // 将当前进程换为 要切换到的进程
+            // 设置任务状态段tss中的特权级0下的 esp0 指针为 next 内核线程 的内核栈的栈顶
+            //load_esp0(next->kstack + KSTACKSIZE);
+            lcr3(next->cr3); // 重新加载 cr3 寄存器(页目录表基址) 进行进程间的页表切换
+            switch_to(&(prev->context), &(next->context)); // 调用 switch_to 进行上下文的保存与切换
+        }
+        local_intr_restore(intr_flag);
     }
 }
 
@@ -403,7 +429,41 @@ do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf) {
     *    update step 1: set child proc's parent to current process, make sure current process's wait_state is 0
     *    update step 5: insert proc_struct into hash_list && proc_list, set the relation links of process
     */
- 
+    if ((proc = alloc_proc()) == NULL)
+    {
+        goto fork_out;
+    }
+    proc->parent = current; // 设置父进程
+    assert(current->wait_state == 0);  
+    //    2. call setup_kstack to allocate a kernel stack for child process
+    if (setup_kstack(proc) != 0)
+    {
+        goto bad_fork_cleanup_proc;
+    }
+    //    3. call copy_mm to dup OR share mm according clone_flag
+    if (copy_mm(clone_flags, proc) != 0)
+    {
+        goto bad_fork_cleanup_kstack;
+    }
+    //    4. call copy_thread to setup tf & context in proc_struct
+    copy_thread(proc, stack, tf);
+    //    5. insert proc_struct into hash_list && proc_list
+    bool intr_flag;
+    local_intr_save(intr_flag);
+    {
+        // get_pid()是不会被打断的，所以一定可以保证不会出问题。
+        proc->pid = get_pid(); // 这一句话要在前面！！！ 
+        hash_proc(proc);
+        // nr_process++; // set_links中已经做了++了。
+        set_links(proc);  
+    }
+    local_intr_restore(intr_flag);
+
+    //    6. call wakeup_proc to make the new child process RUNNABLE
+    wakeup_proc(proc);
+    //    7. set ret vaule using child proc's pid
+    ret = proc->pid;
+
 fork_out:
     return ret;
 
@@ -418,44 +478,61 @@ bad_fork_cleanup_proc:
 //   1. call exit_mmap & put_pgdir & mm_destroy to free the almost all memory space of process
 //   2. set process' state as PROC_ZOMBIE, then call wakeup_proc(parent) to ask parent reclaim itself.
 //   3. call scheduler to switch to other process
+//   回收当前进程所占的大部分内存资源，并通知父进程完成最后的回收工作
 int
 do_exit(int error_code) {
+    // 释放进程自身所占内存空间和相关内存管理（如页表等）信息所占空间
+    // 检查当前进程是否为idleproc或initproc，如果是，发出panic，这俩不能回收，idleproc是空闲备胎，initproc是最顶部的进程
     if (current == idleproc) {
         panic("idleproc exit.\n");
     }
     if (current == initproc) {
         panic("initproc exit.\n");
     }
+    // 获取当前进程的内存管理结构mm
     struct mm_struct *mm = current->mm;
-    if (mm != NULL) {
+    if (mm != NULL) {// 如果mm不为空，说明是用户进程
+        // 切换到内核页表，确保接下来的操作在内核空间执行
         lcr3(boot_cr3);
+        // 如果mm引用计数减到0，说明没有其他进程共享此mm
         if (mm_count_dec(mm) == 0) {
+            // 释放用户虚拟内存空间相关的资源，即内存和对应页表占用的内存空间
             exit_mmap(mm);
             put_pgdir(mm);
             mm_destroy(mm);
         }
+        // 将当前进程的mm设置为NULL，表示资源已经释放
         current->mm = NULL;
     }
+    // 设置进程状态为PROC_ZOMBIE，表示进程已退出
     current->state = PROC_ZOMBIE;
     current->exit_code = error_code;
     bool intr_flag;
     struct proc_struct *proc;
+
+    // 接下来等待父进程回收剩下的资源
+    // 关中断
     local_intr_save(intr_flag);
     {
+        // 获取当前进程的父进程
         proc = current->parent;
+        // 如果父进程处于等待子进程状态，则唤醒父进程
         if (proc->wait_state == WT_CHILD) {
             wakeup_proc(proc);
         }
+        // 遍历当前进程的所有子进程
         while (current->cptr != NULL) {
             proc = current->cptr;
             current->cptr = proc->optr;
-    
+            // 设置子进程的父进程为initproc，并加入initproc的子进程链表
             proc->yptr = NULL;
-            if ((proc->optr = initproc->cptr) != NULL) {
+            if ((proc->optr = initproc->cptr) != NULL) {//针对initproc的子线程是否为空
                 initproc->cptr->yptr = proc;
             }
             proc->parent = initproc;
             initproc->cptr = proc;
+
+            // 如果子进程也处于退出状态，唤醒initproc
             if (proc->state == PROC_ZOMBIE) {
                 if (initproc->wait_state == WT_CHILD) {
                     wakeup_proc(initproc);
@@ -464,7 +541,9 @@ do_exit(int error_code) {
         }
     }
     local_intr_restore(intr_flag);
+    // 调用调度器，选择新的进程执行
     schedule();
+    // 如果执行到这里，表示代码执行出现错误，发出panic
     panic("do_exit will not return!! %d.\n", current->pid);
 }
 
@@ -603,8 +682,9 @@ load_icode(unsigned char *binary, size_t size) {
      *          tf->status should be appropriate for user program (the value of sstatus)
      *          hint: check meaning of SPP, SPIE in SSTATUS, use them by SSTATUS_SPP, SSTATUS_SPIE(defined in risv.h)
      */
-
-
+    tf->gpr.sp = USTACKTOP;
+    tf->epc = elf->e_entry;
+    tf->status = sstatus & ~(SSTATUS_SPP | SSTATUS_SPIE);
     ret = 0;
 out:
     return ret;
@@ -618,15 +698,21 @@ bad_mm:
     goto out;
 }
 
+// 加载程序：它负责将指定的可执行文件加载到内存中。这通常包括读取可执行文件的格式（如 ELF 格式），解析它，并将代码和数据段加载到进程的地址空间。
+
+// 设置执行环境：它设置新程序的执行环境，包括初始化栈、设置环境变量和参数。
+
+// 转换控制权：一旦新程序加载并准备就绪，do_execve 转换程序的执行上下文，使得新加载的程序开始执行。
+
 // do_execve - call exit_mmap(mm)&put_pgdir(mm) to reclaim memory space of current process
 //           - call load_icode to setup new memory space accroding binary prog.
 int
 do_execve(const char *name, size_t len, unsigned char *binary, size_t size) {
     struct mm_struct *mm = current->mm;
-    if (!user_mem_check(mm, (uintptr_t)name, len, 0)) {
+    if (!user_mem_check(mm, (uintptr_t)name, len, 0)) {//检查name的内存空间能否被访问
         return -E_INVAL;
     }
-    if (len > PROC_NAME_LEN) {
+    if (len > PROC_NAME_LEN) {//进程名字的长度有上限 PROC_NAME_LEN，在proc.h定义
         len = PROC_NAME_LEN;
     }
 
@@ -638,13 +724,15 @@ do_execve(const char *name, size_t len, unsigned char *binary, size_t size) {
         cputs("mm != NULL");
         lcr3(boot_cr3);
         if (mm_count_dec(mm) == 0) {
+            // 回收内存，需要清除内存映射
             exit_mmap(mm);
             put_pgdir(mm);
-            mm_destroy(mm);
+            mm_destroy(mm);//把进程当前占用的内存释放，之后重新分配内存
         }
         current->mm = NULL;
     }
     int ret;
+    //把新的程序加载到当前进程里的工作都在load_icode()函数里完成
     if ((ret = load_icode(binary, size)) != 0) {
         goto execve_exit;
     }
@@ -754,22 +842,27 @@ kernel_execve(const char *name, unsigned char *binary, size_t size) {
         "lw a2, %3\n"
         "lw a3, %4\n"
         "lw a4, %5\n"
+        // 触发系统调用
+        // ebreak 被用作一种手段来通知操作系统内核，程序想要执行一个系统调用。
     	"li a7, 10\n"
         "ebreak\n"
-        "sw a0, %0\n"
+        // 系统调用返回值放在a0中
+        "sw a0, %0\n"//这里内联汇编的格式，和用户态调用ecall的格式类似，只是ecall换成了ebreak
         : "=m"(ret)
         : "i"(SYS_exec), "m"(name), "m"(len), "m"(binary), "m"(size)
         : "memory");
     cprintf("ret = %d\n", ret);
     return ret;
 }
-
+// 它接收三个参数：程序名称 (name)、程序的二进制开始地址 (binary) 和程序大小 (size)。
 #define __KERNEL_EXECVE(name, binary, size) ({                          \
             cprintf("kernel_execve: pid = %d, name = \"%s\".\n",        \
                     current->pid, name);                                \
             kernel_execve(name, binary, (size_t)(size));                \
         })
 
+// _binary_obj___user_##x##_out_start和_binary_obj___user_##x##_out_size
+// 都是编译的时候自动生成的符号。注意这里的##x##，按照C语言宏的语法，会直接把x的变量名代替进去。
 #define KERNEL_EXECVE(x) ({                                             \
             extern unsigned char _binary_obj___user_##x##_out_start[],  \
                 _binary_obj___user_##x##_out_size[];                    \
@@ -786,7 +879,7 @@ kernel_execve(const char *name, unsigned char *binary, size_t size) {
 
 // user_main - kernel thread used to exec a user program
 static int
-user_main(void *arg) {
+user_main(void *arg) {//执行函数kern_execve("exit", _binary_obj___user_exit_out_start,_binary_obj___user_exit_out_size)
 #ifdef TEST
     KERNEL_EXECVE2(TEST, TESTSTART, TESTSIZE);
 #else
@@ -801,11 +894,12 @@ init_main(void *arg) {
     size_t nr_free_pages_store = nr_free_pages();
     size_t kernel_allocated_store = kallocated();
 
+    // 建了一个内核进程，执行函数user_main()
     int pid = kernel_thread(user_main, NULL, 0);
     if (pid <= 0) {
         panic("create user_main failed.\n");
     }
-
+    // do_wait(0, NULL)等待子进程退出，也就是等待user_main()退出。
     while (do_wait(0, NULL) == 0) {
         schedule();
     }

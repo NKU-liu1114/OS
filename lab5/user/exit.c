@@ -2,7 +2,8 @@
 #include <ulib.h>
 
 int magic = -0x10384;
-
+// 这个用户程序exit里我们测试了fork() wait()这些函数。这些函数都是user/libs/ulib.h对系统调用的封装。
+// 即一个用户程序通过调用写好的函数接口来进行系统调用
 int
 main(void) {
     int pid, code;
