@@ -5,6 +5,7 @@
 #include <iobuf.h>
 #include <bitmap.h>
 #include <assert.h>
+#include <stdio.h>
 
 //Basic block-level I/O routines
 
